@@ -1,7 +1,7 @@
 import AppKit
+import Combine
 import CryptoKit
 import Foundation
-import Combine
 
 @MainActor
 final class SpotifyAuth: ObservableObject {
@@ -15,8 +15,9 @@ final class SpotifyAuth: ObservableObject {
         isLoggedIn = Keychain.read("refresh_token") != nil
     }
 
-    // MARK
+    // MARK: - Login
 
+    /// Opens the Spotify authorization page in the default browser.
     func startLogin() {
         let v = Self.makeVerifier()
         verifier = v
@@ -30,17 +31,26 @@ final class SpotifyAuth: ObservableObject {
             URLQueryItem(name: "code_challenge", value: Self.makeChallenge(from: v)),
             URLQueryItem(name: "scope", value: Config.scopes)
         ]
+
         if let url = comps.url {
             NSWorkspace.shared.open(url)
         }
     }
 
-    // MARK
-
+    /// Called when the browser redirects back into the app.
     func handleCallback(_ url: URL) async {
-        guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "code" })?.value,
-              let v = verifier else { return }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+
+        if let error = items?.first(where: { $0.name == "error" })?.value {
+            print("[Auth] Authorization denied: \(error)")
+            return
+        }
+
+        guard let code = items?.first(where: { $0.name == "code" })?.value,
+              let v = verifier else {
+            print("[Auth] Callback missing code or verifier")
+            return
+        }
 
         await requestToken(fields: [
             "grant_type": "authorization_code",
@@ -51,13 +61,15 @@ final class SpotifyAuth: ObservableObject {
         ])
     }
 
-    // MARK
+    // MARK: - Token
 
+    /// Returns a valid access token, refreshing it if needed.
     func validToken() async -> String? {
         if let token = accessToken, expiresAt > Date().addingTimeInterval(60) {
             return token
         }
         guard let refresh = Keychain.read("refresh_token") else { return nil }
+
         await requestToken(fields: [
             "grant_type": "refresh_token",
             "refresh_token": refresh,
@@ -73,7 +85,7 @@ final class SpotifyAuth: ObservableObject {
         isLoggedIn = false
     }
 
-    // MARK
+    // MARK: - Internals
 
     private func requestToken(fields: [String: String]) async {
         var request = URLRequest(url: URL(string: "https://accounts.spotify.com/api/token")!)
@@ -89,18 +101,25 @@ final class SpotifyAuth: ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let token = json["access_token"] as? String else {
-                print("토큰 발급 실패:", String(data: data, encoding: .utf8) ?? "")
+                print("[Auth] Token request failed:",
+                      String(data: data, encoding: .utf8) ?? "")
+                // A rejected refresh token means the session is dead.
+                if Keychain.read("refresh_token") != nil, accessToken == nil {
+                    logout()
+                }
                 return
             }
+
             accessToken = token
             let seconds = json["expires_in"] as? Double ?? 3600
             expiresAt = Date().addingTimeInterval(seconds)
+
             if let refresh = json["refresh_token"] as? String {
                 Keychain.save(refresh, for: "refresh_token")
             }
             isLoggedIn = true
         } catch {
-            print("Network Error:", error)
+            print("[Auth] Network error:", error)
         }
     }
 
