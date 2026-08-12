@@ -10,6 +10,7 @@ final class SpotifyAuth: ObservableObject {
     private var verifier: String?
     private var accessToken: String?
     private var expiresAt = Date.distantPast
+    private var state: String?
 
     init() {
         isLoggedIn = Keychain.read("refresh_token") != nil
@@ -21,6 +22,8 @@ final class SpotifyAuth: ObservableObject {
     func startLogin() {
         let v = Self.makeVerifier()
         verifier = v
+        let s = Self.makeVerifier()
+        state = s
 
         var comps = URLComponents(string: "https://accounts.spotify.com/authorize")!
         comps.queryItems = [
@@ -29,7 +32,8 @@ final class SpotifyAuth: ObservableObject {
             URLQueryItem(name: "redirect_uri", value: Config.redirectURI),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "code_challenge", value: Self.makeChallenge(from: v)),
-            URLQueryItem(name: "scope", value: Config.scopes)
+            URLQueryItem(name: "scope", value: Config.scopes),
+            URLQueryItem(name: "state", value: s)
         ]
 
         if let url = comps.url {
@@ -46,6 +50,12 @@ final class SpotifyAuth: ObservableObject {
             return
         }
 
+        guard let returned = items?.first(where: { $0.name == "state" })?.value,
+              returned == state else {
+            print("[Auth] State mismatch — possible interception")
+            return
+        }
+        
         guard let code = items?.first(where: { $0.name == "code" })?.value,
               let v = verifier else {
             print("[Auth] Callback missing code or verifier")

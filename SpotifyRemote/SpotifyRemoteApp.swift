@@ -188,10 +188,10 @@ struct RemoteView: View {
         }
         .padding(14)
         .frame(width: 280)
-        .onChange(of: model.nowPlaying?.volume) { _, new in
+        .onChange(of: model.nowPlaying?.volume) { new in
             if let new, !isDraggingVolume { volume = Double(new) }
         }
-        .onChange(of: model.nowPlaying?.progressMs) { _, new in
+        .onChange(of: model.nowPlaying?.progressMs) { new in
             if let new, !isDraggingSeek { seekPosition = Double(new) }
         }
     }
