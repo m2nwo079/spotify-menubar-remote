@@ -8,7 +8,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.myname.spotifyremote</string>
+			<string>com.yourname.spotifyremote</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.myname.spotifyremote</string>
