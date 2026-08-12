@@ -1,10 +1,11 @@
 import Foundation
 
 enum Config {
-    // Paste your client ID
+    // Paste your Client ID from the Spotify Developer Dashboard
     static let clientID = "YOUR_CLIENT_ID_HERE"
 
-    // Paste your URL
+    // Must exactly match the Redirect URI registered in the Dashboard
+    // and the URL Scheme registered in Xcode (Info > URL Types)
     static let redirectURI = "com.yourname.spotifyremote://callback"
 
     static let scopes = [
